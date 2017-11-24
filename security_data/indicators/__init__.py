@@ -1,8 +1,6 @@
 import numpy as np
-from sklearn import linear_model
 
 DATE_OUTPUT_FORMAT = '%Y%m%d%H%M%S'
-REG_MODEL = linear_model.LinearRegression()
 
 BB_MEAN_COL_TEMP = '__bb_mean_col'
 BB_STD_COL_TEMP = '__bb_std_dev_col'
@@ -138,7 +136,16 @@ class Indicators:
 
     @staticmethod
     def _linear_regression_value(data_list):
-        data_size = data_list.size
-        x_axis = np.array([range(data_list.size)]).T
-        REG_MODEL.fit(x_axis, np.array(data_list))
-        return REG_MODEL.predict(np.array(data_size - 1))[0]
+        N = data_list.size
+        x_list = list(range(N))
+        y_list = data_list.tolist()
+        x_avg = sum(x_list) / N
+        y_avg = sum(y_list) / N
+        var_x, cov_xy = 0, 0
+        for x, y in zip(x_list, y_list):
+            temp = x - x_avg
+            var_x += temp ** 2
+            cov_xy += temp * (y - y_avg)
+        slope = cov_xy / var_x
+        y_interc = y_avg - slope * x_avg
+        return (N-1) * slope + y_interc

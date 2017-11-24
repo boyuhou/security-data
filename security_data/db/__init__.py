@@ -1,4 +1,5 @@
 import sqlalchemy as sa
+import os.path
 from sqlalchemy.dialects.mssql import SMALLDATETIME, DATE, VARCHAR, DECIMAL, MONEY
 import urllib.parse
 import pandas as pd
@@ -12,26 +13,6 @@ class DataService(object):
         params = urllib.parse.quote_plus(
             "DRIVER={ODBC Driver 13 for SQL Server};SERVER=localhost;DATABASE=RLCO;UID=root;PWD=root")
         self.engine = sa.create_engine('mssql+pyodbc:///?odbc_connect=' + params)
-        self.daily_table = sa.Table('daily_price', sa.MetaData(),
-                                    sa.Column('price_time', DATE, primary_key=True),
-                                    sa.Column('price_open', MONEY),
-                                    sa.Column('price_high', MONEY),
-                                    sa.Column('price_low', MONEY),
-                                    sa.Column('price_close', MONEY),
-                                    sa.Column('rl10', MONEY),
-                                    sa.Column('rl30', MONEY),
-                                    sa.Column('ticker', VARCHAR, primary_key=True),
-                                    )
-        self.intraday_table = sa.Table('intraday_price', sa.MetaData(),
-                                       sa.Column('price_time', SMALLDATETIME, primary_key=True),
-                                       sa.Column('price_open', MONEY),
-                                       sa.Column('price_high', MONEY),
-                                       sa.Column('price_low', MONEY),
-                                       sa.Column('price_close', MONEY),
-                                       sa.Column('rl10', MONEY),
-                                       sa.Column('rl30', MONEY),
-                                       sa.Column('ticker', VARCHAR, primary_key=True),
-                                       )
 
     def get_intraday_data_by_start_date(self, start_date):
         sql = INTRADAY_QUERY_BASE + 'WHERE price_time > {}'.format(start_date)
@@ -59,27 +40,50 @@ class DataService(object):
             con.execute(sql)
 
     def insert_daily_data(self, df):
-        df = df.reset_index().rename(columns={
+        df = df.rename(columns={
             'datetime': 'price_time',
             'open': 'price_open',
             'high': 'price_high',
             'low': 'price_low',
             'close': 'price_close'
         }).dropna()
-        insert_statement = self.daily_table.insert().values(df.to_records(index=False).tolist())
+        df['price_time'] = pd.to_datetime(df['price_time']).dt.strftime('%Y-%m-%d')
+        df['rl10'] = df['rl10'].round(3)
+        df['rl30'] = df['rl30'].round(3)
+        file_path = 'daily.csv'
+        df[['price_time', 'ticker', 'price_open', 'price_high', 'price_low', 'price_close', 'rl10', 'rl30']].to_csv(
+            file_path, header=False, index=False)
+        absolute_path = os.path.abspath(file_path)
+        sql = """
+            BULK INSERT RLCO.dbo.daily_price
+            FROM '{0}' WITH (
+            FIELDTERMINATOR=',',
+            ROWTERMINATOR='\n'
+            );
+        """.format(absolute_path)
         with self.engine.connect() as con:
-            con.execute(insert_statement)
+            con.execute(sql)
 
-# https://stackoverflow.com/questions/29638136/how-to-speed-up-bulk-insert-to-ms-sql-server-from-csv-using-pyodbc
     def insert_intraday_data(self, df):
-        df = df.reset_index().rename(columns={
+        df = df.rename(columns={
             'datetime': 'price_time',
             'open': 'price_open',
             'high': 'price_high',
             'low': 'price_low',
             'close': 'price_close'
         }).dropna()
-        df['price_time'] = df['price_time'].dt.strftime('%Y-%m-%d %H:%M:%S')
-        insert_statement = self.intraday_table.insert().values(df.to_records(index=False).tolist())
+        df['price_time'] = pd.to_datetime(df['price_time']).dt.strftime('%Y-%m-%d %H:%M:%S')
+        df['rl10'] = df['rl10'].round(3)
+        df['rl30'] = df['rl30'].round(3)
+        file_path = 'intraday.csv'
+        df[['price_time', 'ticker', 'price_open', 'price_high', 'price_low', 'price_close', 'rl10', 'rl30']].to_csv(file_path, header=False, index=False)
+        absolute_path = os.path.abspath(file_path)
+        sql = """
+            BULK INSERT RLCO.dbo.intraday_price
+            FROM '{0}' WITH (
+            FIELDTERMINATOR=',',
+            ROWTERMINATOR='\n'
+            );
+        """.format(absolute_path)
         with self.engine.connect() as con:
-            con.execute(insert_statement)
+            con.execute(sql)
