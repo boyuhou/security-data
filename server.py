@@ -14,8 +14,8 @@ def main(input_file):
     logger.info('input file: {0}'.format(input_file))
     ticker_list = get_ticker_list(input_file).tolist()
     security_service = SecurityService()
-    # security_service.update_daily_data(ticker_list)
-    security_service.update_intraday_data(ticker_list)
+    security_service.update_daily_data(ticker_list)
+    # security_service.update_intraday_data(ticker_list)
 
 
 def get_ticker_list(input_file):

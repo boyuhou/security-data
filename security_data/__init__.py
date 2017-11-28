@@ -6,7 +6,7 @@ from security_data.iqfeed import iqfeed
 from security_data.db import DataService
 from security_data.indicators import Indicators
 
-start_date = datetime.date(year=2016, month=11, day=1)
+start_date = datetime.date(year=2000, month=11, day=1)
 logger = logging.getLogger(__name__)
 
 
@@ -61,7 +61,7 @@ class SecurityService(object):
             if min_date is not None:
                 data_df = data_df[data_df.index > min_date]
             result_list.append(data_df.reset_index())
-        self.ds.insert_intraday_data(pd.concat(result_list, axis=1, ignore_index=True))
+        self.ds.insert_intraday_data(pd.concat(result_list, axis=0, ignore_index=True))
 
     def get_lookback_date(self, min_date, sdate):
         if min_date is None:
