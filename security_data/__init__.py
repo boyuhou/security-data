@@ -2,11 +2,11 @@ import datetime
 import dateutil.relativedelta
 import logging
 import pandas as pd
+from dateutil.relativedelta import relativedelta
 from security_data.iqfeed import iqfeed
 from security_data.db import DataService
 from security_data.indicators import Indicators
 
-start_date = datetime.date(year=2000, month=11, day=1)
 logger = logging.getLogger(__name__)
 
 
@@ -14,11 +14,8 @@ class SecurityService(object):
     def __init__(self):
         self.ds = DataService()
 
-    def update_daily_data(self, tickers):
-        min_date = self.ds.get_last_available_date(intraday=False)
-        if min_date is not None:
-            self.ds.remove_data(min_date, intraday=False)
-        lookback_date = self.get_lookback_date(min_date, start_date)
+    def update_daily_data(self, tickers, start_date):
+        lookback_date = start_date + relativedelta(years=-5)
 
         result_list = []
         for ticker in tickers:
@@ -34,16 +31,12 @@ class SecurityService(object):
                 .linear_regression(30, 'rl30')\
                 .df
             data_df['ticker'] = ticker
-            if min_date is not None:
-                data_df = data_df[data_df.index > min_date]
+            data_df = data_df[data_df.index >= start_date.date()]
             result_list.append(data_df.reset_index())
         self.ds.insert_daily_data(pd.concat(result_list, axis=0, ignore_index=True))
 
-    def update_intraday_data(self, tickers):
-        min_date = self.ds.get_last_available_date(intraday=True)
-        if min_date is not None:
-            self.ds.remove_data(min_date, intraday=True)
-        lookback_date = self.get_lookback_date(min_date, start_date)
+    def update_intraday_data(self, tickers, start_date):
+        lookback_date = start_date + relativedelta(days=-3)
 
         result_list = []
         for ticker in tickers:
@@ -58,12 +51,6 @@ class SecurityService(object):
                 .linear_regression(30, 'rl30') \
                 .df
             data_df['ticker'] = ticker
-            if min_date is not None:
-                data_df = data_df[data_df.index > min_date]
+            data_df = data_df[data_df.index > start_date]
             result_list.append(data_df.reset_index())
         self.ds.insert_intraday_data(pd.concat(result_list, axis=0, ignore_index=True))
-
-    def get_lookback_date(self, min_date, sdate):
-        if min_date is None:
-            return sdate
-        return min_date - dateutil.relativedelta.relativedelta(months=2)
